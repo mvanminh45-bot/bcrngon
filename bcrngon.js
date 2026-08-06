@@ -14,7 +14,12 @@ const USERNAME = "vanminhdiev";
 const PASSWORD = "vanminhluxury";
 const DEVELOPER_ID = "@vanminh2603";
 
-const agent = new https.Agent({ rejectUnauthorized: false });
+const agent = new https.Agent({
+    rejectUnauthorized: false,
+    keepAlive: true,
+    maxSockets: 10
+});
+
 let cookieJar = '';
 let baccaratData = [];
 let lastUpdate = null;
@@ -58,45 +63,33 @@ class DoTinCaySieuCap {
     danhGiaDoPhanTan(lichSu) {
         const total = lichSu.length;
         if (total === 0) return 0;
-        
         const banker = lichSu.filter(x => x === 'BANKER').length / total;
         const player = lichSu.filter(x => x === 'PLAYER').length / total;
         const tie = lichSu.filter(x => x === 'TIE').length / total;
-        
-        const entropy = -((banker * Math.log2(banker + 0.001)) + 
-                         (player * Math.log2(player + 0.001)) + 
-                         (tie * Math.log2(tie + 0.001)));
-        
+        const entropy = -((banker * Math.log2(banker + 0.001)) + (player * Math.log2(player + 0.001)) + (tie * Math.log2(tie + 0.001)));
         const maxEntropy = Math.log2(3);
         const diem = (entropy / maxEntropy) * 100;
-        
         this.cacYeuTo.doPhanTan = Math.min(100, diem);
         return this.cacYeuTo.doPhanTan;
     }
 
     danhGiaDoXacDinhCau(lichSu) {
         if (lichSu.length < 10) return 0;
-        
         let diem = 0;
         const patterns = this._timPattern(lichSu);
-        
         const patternCounts = {};
         for (const p of patterns) {
             const key = p.join('|');
             patternCounts[key] = (patternCounts[key] || 0) + 1;
         }
-        
         let maxCount = 0;
         for (const count of Object.values(patternCounts)) {
             if (count > maxCount) maxCount = count;
         }
-        
         const repeatRate = maxCount / patterns.length;
         diem = repeatRate * 100 * 0.7 + 30 * 0.3;
-        
         if (maxCount > 5) diem += 15;
         if (maxCount > 10) diem += 15;
-        
         this.cacYeuTo.doXacDinhCau = Math.min(100, diem);
         return this.cacYeuTo.doXacDinhCau;
     }
@@ -111,7 +104,6 @@ class DoTinCaySieuCap {
 
     danhGiaDoTuongDong(lichSu) {
         if (lichSu.length < 20) return 0;
-        
         const mauCau = [
             ['BANKER','BANKER','PLAYER','PLAYER'],
             ['BANKER','PLAYER','BANKER','PLAYER'],
@@ -120,11 +112,9 @@ class DoTinCaySieuCap {
             ['PLAYER','BANKER','PLAYER','BANKER'],
             ['PLAYER','PLAYER','PLAYER','BANKER']
         ];
-        
         const ganDay = lichSu.slice(-20);
         let diem = 0;
         let soSanh = 0;
-        
         for (let i = 0; i <= ganDay.length - 4; i++) {
             const segment = ganDay.slice(i, i + 4);
             for (const mau of mauCau) {
@@ -137,7 +127,6 @@ class DoTinCaySieuCap {
                 soSanh++;
             }
         }
-        
         const result = soSanh > 0 ? (diem / soSanh) * 100 : 0;
         this.cacYeuTo.doTuongDong = Math.min(100, result);
         return this.cacYeuTo.doTuongDong;
@@ -145,12 +134,10 @@ class DoTinCaySieuCap {
 
     danhGiaDoBienDong(lichSu) {
         if (lichSu.length < 10) return 0;
-        
         let changes = 0;
         for (let i = 1; i < lichSu.length; i++) {
             if (lichSu[i] !== lichSu[i-1]) changes++;
         }
-        
         const changeRate = changes / (lichSu.length - 1);
         let diem = 0;
         if (changeRate < 0.2) diem = 90;
@@ -159,11 +146,9 @@ class DoTinCaySieuCap {
         else if (changeRate < 0.65) diem = 60;
         else if (changeRate < 0.8) diem = 50;
         else diem = 40;
-        
         const maxStreak = this._timMaxStreak(lichSu);
         if (maxStreak > 5) diem += 10;
         if (maxStreak > 8) diem += 10;
-        
         this.cacYeuTo.doBienDong = Math.min(100, diem);
         return this.cacYeuTo.doBienDong;
     }
@@ -185,33 +170,26 @@ class DoTinCaySieuCap {
 
     danhGiaDoTuanHoan(lichSu) {
         if (lichSu.length < 20) return 0;
-        
         let diem = 0;
         const testLengths = [2, 3, 4, 5, 6];
-        
         for (const len of testLengths) {
             const patterns = this._timPattern(lichSu, len);
             const patternMap = {};
-            
             for (const p of patterns) {
                 const key = p.join('|');
                 patternMap[key] = (patternMap[key] || 0) + 1;
             }
-            
             let maxCount = 0;
             for (const count of Object.values(patternMap)) {
                 if (count > maxCount) maxCount = count;
             }
-            
             if (maxCount > 1) {
                 const rate = maxCount / patterns.length;
                 if (rate > 0.3) diem += 15 * (rate / 0.3);
             }
         }
-        
         if (diem > 50) diem += 15;
         if (diem > 70) diem += 15;
-        
         this.cacYeuTo.doTuanHoan = Math.min(100, diem);
         return this.cacYeuTo.doTuanHoan;
     }
@@ -225,21 +203,16 @@ class DoTinCaySieuCap {
             doBienDong: this.danhGiaDoBienDong(lichSu),
             doTuanHoan: this.danhGiaDoTuanHoan(lichSu)
         };
-        
         let tongDiem = 0;
         let tongTrongSo = 0;
-        
         for (const [key, diem] of Object.entries(diemCacYeuTo)) {
             const trongSo = this.trongSo[key] || 0.1;
             tongDiem += diem * trongSo;
             tongTrongSo += trongSo;
         }
-        
         this.diemTinCay = tongDiem / tongTrongSo;
-        
         let mucDo = '';
         let moTa = '';
-        
         if (this.diemTinCay >= 85) {
             mucDo = 'CAO';
             moTa = 'Rất tin cậy, dữ liệu rõ ràng và ổn định';
@@ -256,7 +229,6 @@ class DoTinCaySieuCap {
             mucDo = 'THAP';
             moTa = 'Rất thấp, không nên dựa vào dự đoán này';
         }
-        
         const chiTiet = {};
         for (const [key, diem] of Object.entries(diemCacYeuTo)) {
             const ten = {
@@ -267,19 +239,16 @@ class DoTinCaySieuCap {
                 doBienDong: 'Độ biến động',
                 doTuanHoan: 'Độ tuần hoàn'
             }[key] || key;
-            
             let danhGia = '';
             if (diem >= 80) danhGia = 'TỐT';
             else if (diem >= 60) danhGia = 'KHÁ';
             else if (diem >= 40) danhGia = 'TRUNG BÌNH';
             else danhGia = 'YẾU';
-            
             chiTiet[ten] = {
                 diem: Math.round(diem),
                 danhGia: danhGia
             };
         }
-        
         return {
             diemTongHop: Math.round(this.diemTinCay),
             mucDo: mucDo,
@@ -307,17 +276,14 @@ class DoTinCaySieuCap {
         const ganDay = lichSu.slice(-30);
         const soLanXuatHien = ganDay.filter(x => x === cua).length;
         const tyLe = soLanXuatHien / ganDay.length;
-        
         let diem = 50;
         if (tyLe > 0.6) diem = 85;
         else if (tyLe > 0.5) diem = 75;
         else if (tyLe > 0.4) diem = 65;
         else if (tyLe > 0.3) diem = 55;
         else diem = 45;
-        
         const doOnDinh = this._tinhDoOnDinh(lichSu, cua);
         diem = diem * 0.7 + doOnDinh * 0.3;
-        
         return Math.round(diem);
     }
 
@@ -325,7 +291,6 @@ class DoTinCaySieuCap {
         let doOnDinh = 0;
         let doDaiTrungBinh = 0;
         let dem = 0;
-        
         let currentStreak = 0;
         for (const item of lichSu) {
             if (item === cua) {
@@ -338,7 +303,6 @@ class DoTinCaySieuCap {
                 }
             }
         }
-        
         if (dem > 0) {
             doDaiTrungBinh = doDaiTrungBinh / dem;
             if (doDaiTrungBinh >= 5) doOnDinh = 85;
@@ -348,7 +312,6 @@ class DoTinCaySieuCap {
         } else {
             doOnDinh = 30;
         }
-        
         return doOnDinh;
     }
 }
@@ -372,22 +335,18 @@ class SieuThuậtToan {
             tang3: this._tangNangCao(lichSu),
             tang4: this._tangSieuCap(lichSu)
         };
-        
         return this._tongHopKetQua(ketQua);
     }
 
     _tangCoBan(lichSu) {
         if (lichSu.length < 5) return { BANKER: 33, PLAYER: 33, TIE: 34, doTinCay: 10 };
-        
         const total = lichSu.length;
         const banker = lichSu.filter(x => x === 'BANKER').length;
         const player = lichSu.filter(x => x === 'PLAYER').length;
         const tie = lichSu.filter(x => x === 'TIE').length;
-        
         const pBanker = (banker / total) * 0.7 + 0.4586 * 0.3;
         const pPlayer = (player / total) * 0.7 + 0.4462 * 0.3;
         const pTie = (tie / total) * 0.7 + 0.0952 * 0.3;
-        
         const tong = pBanker + pPlayer + pTie;
         return {
             BANKER: Math.round((pBanker / tong) * 100),
@@ -399,32 +358,26 @@ class SieuThuậtToan {
 
     _tangTrungGian(lichSu) {
         if (lichSu.length < 15) return { BANKER: 33, PLAYER: 33, TIE: 34, doTinCay: 20 };
-        
         const windows = [5, 10, 20];
         const results = { BANKER: 0, PLAYER: 0, TIE: 0 };
         let trongSo = 0;
-        
         for (const w of windows) {
             if (lichSu.length < w) continue;
             const ganDay = lichSu.slice(-w);
             const banker = ganDay.filter(x => x === 'BANKER').length;
             const player = ganDay.filter(x => x === 'PLAYER').length;
             const tie = ganDay.filter(x => x === 'TIE').length;
-            
             const wWeight = w / 20;
             results.BANKER += (banker / w) * wWeight * 100;
             results.PLAYER += (player / w) * wWeight * 100;
             results.TIE += (tie / w) * wWeight * 100;
             trongSo += wWeight;
         }
-        
         const ganDayNhat = lichSu.slice(-5);
         const trend = this._phanTichXuHuong(ganDayNhat);
-        
         results.BANKER = (results.BANKER / trongSo) * 0.7 + trend.BANKER * 0.3;
         results.PLAYER = (results.PLAYER / trongSo) * 0.7 + trend.PLAYER * 0.3;
         results.TIE = (results.TIE / trongSo) * 0.7 + trend.TIE * 0.3;
-        
         const tong = results.BANKER + results.PLAYER + results.TIE;
         return {
             BANKER: Math.round((results.BANKER / tong) * 100),
@@ -436,18 +389,14 @@ class SieuThuậtToan {
 
     _phanTichXuHuong(ganDay) {
         if (ganDay.length < 3) return { BANKER: 33, PLAYER: 33, TIE: 34 };
-        
         const changes = [];
         for (let i = 1; i < ganDay.length; i++) {
             if (ganDay[i] !== ganDay[i-1]) changes.push(1);
             else changes.push(0);
         }
-        
         const changeRate = changes.reduce((a, b) => a + b, 0) / changes.length;
-        
         let pBanker = 0, pPlayer = 0, pTie = 0;
         const last = ganDay[ganDay.length - 1];
-        
         if (changeRate < 0.3) {
             if (last === 'BANKER') pBanker = 65;
             else if (last === 'PLAYER') pPlayer = 65;
@@ -466,7 +415,6 @@ class SieuThuậtToan {
             else if (last === 'PLAYER') pBanker = 60;
             else pPlayer = 50;
         }
-        
         const tong = pBanker + pPlayer + pTie;
         return {
             BANKER: (pBanker / tong) * 100,
@@ -477,13 +425,10 @@ class SieuThuậtToan {
 
     _tangNangCao(lichSu) {
         if (lichSu.length < 25) return { BANKER: 33, PLAYER: 33, TIE: 34, doTinCay: 30 };
-        
         const order = Math.min(4, Math.floor(lichSu.length / 10));
         const markov = this._markovOrder(lichSu, order);
-        
         const recentPattern = lichSu.slice(-order);
         const key = recentPattern.join('|');
-        
         let pBanker = 33, pPlayer = 33, pTie = 34;
         if (markov[key]) {
             const total = markov[key].total;
@@ -491,12 +436,10 @@ class SieuThuậtToan {
             pPlayer = (markov[key].PLAYER / total) * 100;
             pTie = (markov[key].TIE / total) * 100;
         }
-        
         const nnPred = this._neuralNetwork(lichSu);
         pBanker = pBanker * 0.6 + nnPred.BANKER * 0.4;
         pPlayer = pPlayer * 0.6 + nnPred.PLAYER * 0.4;
         pTie = pTie * 0.6 + nnPred.TIE * 0.4;
-        
         const tong = pBanker + pPlayer + pTie;
         return {
             BANKER: Math.round((pBanker / tong) * 100),
@@ -512,7 +455,6 @@ class SieuThuậtToan {
             const pattern = lichSu.slice(i - order, i);
             const key = pattern.join('|');
             const next = lichSu[i];
-            
             if (!transitions[key]) {
                 transitions[key] = { BANKER: 0, PLAYER: 0, TIE: 0, total: 0 };
             }
@@ -525,7 +467,6 @@ class SieuThuậtToan {
     _neuralNetwork(lichSu) {
         const weights = Array(10).fill(0).map(() => Math.random() * 0.5 + 0.5);
         let pBanker = 0, pPlayer = 0, pTie = 0;
-        
         const recent = lichSu.slice(-10);
         for (let i = 0; i < recent.length; i++) {
             const w = weights[i];
@@ -533,7 +474,6 @@ class SieuThuậtToan {
             else if (recent[i] === 'PLAYER') pPlayer += w;
             else pTie += w;
         }
-        
         const total = pBanker + pPlayer + pTie;
         return {
             BANKER: (pBanker / total) * 100,
@@ -544,7 +484,6 @@ class SieuThuậtToan {
 
     _tangSieuCap(lichSu) {
         if (lichSu.length < 40) return { BANKER: 33, PLAYER: 33, TIE: 34, doTinCay: 40 };
-        
         const phanTich = {
             cau: this._phanTichCau(lichSu),
             pattern: this._phanTichPattern(lichSu),
@@ -552,7 +491,6 @@ class SieuThuậtToan {
             xacSuat: this._phanTichXacSuatCoDieuKien(lichSu),
             bigRoad: this._phanTichBigRoad(lichSu)
         };
-        
         const trongSo = {
             cau: 0.25,
             pattern: 0.25,
@@ -560,10 +498,8 @@ class SieuThuậtToan {
             xacSuat: 0.15,
             bigRoad: 0.15
         };
-        
         let pBanker = 0, pPlayer = 0, pTie = 0;
         let tongTrongSo = 0;
-        
         for (const [key, value] of Object.entries(phanTich)) {
             if (value) {
                 const w = trongSo[key] || 0.1;
@@ -573,11 +509,9 @@ class SieuThuậtToan {
                 tongTrongSo += w;
             }
         }
-        
         pBanker = pBanker / tongTrongSo;
         pPlayer = pPlayer / tongTrongSo;
         pTie = pTie / tongTrongSo;
-        
         const diff = Math.abs(pBanker - pPlayer);
         if (diff < 5) {
             const bonus = 3;
@@ -589,7 +523,6 @@ class SieuThuậtToan {
                 pBanker -= bonus;
             }
         }
-        
         const tong = pBanker + pPlayer + pTie;
         return {
             BANKER: Math.round((pBanker / tong) * 100),
@@ -604,13 +537,11 @@ class SieuThuậtToan {
         for (let i = 0; i <= lichSu.length - 4; i++) {
             patterns.push(lichSu.slice(i, i + 4));
         }
-        
         const count = {};
         for (const p of patterns) {
             const key = p.join('|');
             count[key] = (count[key] || 0) + 1;
         }
-        
         let maxCount = 0;
         let bestPattern = null;
         for (const [key, value] of Object.entries(count)) {
@@ -619,22 +550,17 @@ class SieuThuậtToan {
                 bestPattern = key;
             }
         }
-        
         if (!bestPattern) return null;
-        
         const patternArr = bestPattern.split('|');
         const next = patternArr[0];
-        
         let pBanker = 33, pPlayer = 33, pTie = 34;
         if (next === 'BANKER') pBanker = 70;
         else if (next === 'PLAYER') pPlayer = 70;
         else pTie = 70;
-        
         const confidence = Math.min(80, (maxCount / patterns.length) * 100 + 20);
         pBanker = pBanker * (confidence / 100) + 33 * (1 - confidence / 100);
         pPlayer = pPlayer * (confidence / 100) + 33 * (1 - confidence / 100);
         pTie = pTie * (confidence / 100) + 34 * (1 - confidence / 100);
-        
         const tong = pBanker + pPlayer + pTie;
         return {
             BANKER: (pBanker / tong) * 100,
@@ -648,18 +574,15 @@ class SieuThuậtToan {
             '1-1': 0, '2-2': 0, '1-2-1': 0, '2-1-2': 0,
             '1-2-3': 0, '3-2-1': 0, '1-1-2': 0, '2-2-1': 0
         };
-        
         for (let i = 0; i <= lichSu.length - 3; i++) {
             const p = lichSu.slice(i, i + 3);
             const unique = new Set(p);
-            
             if (unique.size === 2) {
                 if (p[0] === p[1]) patterns['1-1']++;
                 else if (p[1] === p[2]) patterns['2-2']++;
                 else if (p[0] === p[2]) patterns['1-2-1']++;
             }
         }
-        
         let maxPattern = '';
         let maxCount = 0;
         for (const [pattern, count] of Object.entries(patterns)) {
@@ -668,12 +591,9 @@ class SieuThuậtToan {
                 maxPattern = pattern;
             }
         }
-        
         if (maxCount === 0) return null;
-        
         const last3 = lichSu.slice(-3);
         let pBanker = 33, pPlayer = 33, pTie = 34;
-        
         switch (maxPattern) {
             case '1-1':
                 if (last3[0] === 'BANKER') pBanker = 65;
@@ -688,12 +608,10 @@ class SieuThuậtToan {
                 else pPlayer = 70;
                 break;
         }
-        
         const confidence = Math.min(85, 50 + (maxCount / (lichSu.length / 3)) * 50);
         pBanker = pBanker * (confidence / 100) + 33 * (1 - confidence / 100);
         pPlayer = pPlayer * (confidence / 100) + 33 * (1 - confidence / 100);
         pTie = pTie * (confidence / 100) + 34 * (1 - confidence / 100);
-        
         const tong = pBanker + pPlayer + pTie;
         return {
             BANKER: (pBanker / tong) * 100,
@@ -704,11 +622,9 @@ class SieuThuậtToan {
 
     _phanTichChuoi(lichSu) {
         if (lichSu.length < 10) return null;
-        
         const chuoi = [];
         let current = lichSu[0];
         let length = 1;
-        
         for (let i = 1; i < lichSu.length; i++) {
             if (lichSu[i] === current) {
                 length++;
@@ -719,12 +635,9 @@ class SieuThuậtToan {
             }
         }
         chuoi.push({ value: current, length });
-        
         const lastStreak = chuoi[chuoi.length - 1];
         const avgLength = chuoi.reduce((a, b) => a + b.length, 0) / chuoi.length;
-        
         let pBanker = 33, pPlayer = 33, pTie = 34;
-        
         if (lastStreak.length > avgLength * 1.5) {
             if (lastStreak.value === 'BANKER') pPlayer = 65;
             else pBanker = 65;
@@ -736,17 +649,14 @@ class SieuThuậtToan {
             const banker = lichSu.filter(x => x === 'BANKER').length;
             const player = lichSu.filter(x => x === 'PLAYER').length;
             const tie = lichSu.filter(x => x === 'TIE').length;
-            
             pBanker = (banker / total) * 100;
             pPlayer = (player / total) * 100;
             pTie = (tie / total) * 100;
         }
-        
         const confidence = Math.min(85, 50 + (lichSu.length / 100) * 35);
         pBanker = pBanker * (confidence / 100) + 33 * (1 - confidence / 100);
         pPlayer = pPlayer * (confidence / 100) + 33 * (1 - confidence / 100);
         pTie = pTie * (confidence / 100) + 34 * (1 - confidence / 100);
-        
         const tong = pBanker + pPlayer + pTie;
         return {
             BANKER: (pBanker / tong) * 100,
@@ -757,38 +667,30 @@ class SieuThuậtToan {
 
     _phanTichXacSuatCoDieuKien(lichSu) {
         if (lichSu.length < 15) return null;
-        
         const windowSize = Math.min(5, Math.floor(lichSu.length / 3));
         const stats = {};
-        
         for (let i = windowSize; i < lichSu.length; i++) {
             const pattern = lichSu.slice(i - windowSize, i);
             const key = pattern.join('|');
             const next = lichSu[i];
-            
             if (!stats[key]) {
                 stats[key] = { BANKER: 0, PLAYER: 0, TIE: 0, total: 0 };
             }
             stats[key][next]++;
             stats[key].total++;
         }
-        
         const currentPattern = lichSu.slice(-windowSize);
         const key = currentPattern.join('|');
-        
         if (!stats[key]) return null;
-        
         const data = stats[key];
         const total = data.total;
         let pBanker = (data.BANKER / total) * 100;
         let pPlayer = (data.PLAYER / total) * 100;
         let pTie = (data.TIE / total) * 100;
-        
         const confidence = Math.min(90, 50 + (total / 20) * 40);
         pBanker = pBanker * (confidence / 100) + 33 * (1 - confidence / 100);
         pPlayer = pPlayer * (confidence / 100) + 33 * (1 - confidence / 100);
         pTie = pTie * (confidence / 100) + 34 * (1 - confidence / 100);
-        
         const tong = pBanker + pPlayer + pTie;
         return {
             BANKER: (pBanker / tong) * 100,
@@ -799,11 +701,9 @@ class SieuThuậtToan {
 
     _phanTichBigRoad(lichSu) {
         if (lichSu.length < 20) return null;
-        
         const road = [];
         let col = 0;
         let row = 0;
-        
         for (let i = 0; i < lichSu.length; i++) {
             if (i > 0 && lichSu[i] !== lichSu[i-1]) {
                 col++;
@@ -813,15 +713,12 @@ class SieuThuậtToan {
             road[col].push({ value: lichSu[i], row });
             row++;
         }
-        
         let pBanker = 33, pPlayer = 33, pTie = 34;
         let count = 0;
-        
         for (const column of road) {
             if (!column) continue;
             const values = column.map(c => c.value);
             const unique = [...new Set(values)];
-            
             if (unique.length === 1) {
                 const lastCol = road[road.length - 1];
                 if (lastCol && lastCol.length > 2) {
@@ -831,12 +728,10 @@ class SieuThuậtToan {
                 count++;
             }
         }
-        
         if (count > 2) {
             pBanker += 5;
             pPlayer += 5;
         }
-        
         const tong = pBanker + pPlayer + pTie;
         return {
             BANKER: (pBanker / tong) * 100,
@@ -852,11 +747,9 @@ class SieuThuậtToan {
             tang3: 0.30,
             tang4: 0.40
         };
-        
         let pBanker = 0, pPlayer = 0, pTie = 0;
         let doTinCay = 0;
         let tongTrongSo = 0;
-        
         for (const [key, value] of Object.entries(ketQuaTang)) {
             if (value && value.BANKER && value.PLAYER && value.TIE) {
                 const w = trongSo[key] || 0.1;
@@ -867,16 +760,13 @@ class SieuThuậtToan {
                 tongTrongSo += w;
             }
         }
-        
         if (tongTrongSo === 0) {
             return { BANKER: 33, PLAYER: 33, TIE: 34, doTinCay: 30 };
         }
-        
         pBanker = pBanker / tongTrongSo;
         pPlayer = pPlayer / tongTrongSo;
         pTie = pTie / tongTrongSo;
         doTinCay = doTinCay / tongTrongSo;
-        
         const diff = Math.abs(pBanker - pPlayer);
         if (diff < 5) {
             const bonus = Math.max(2, 5 - diff);
@@ -888,7 +778,6 @@ class SieuThuậtToan {
                 pBanker -= bonus;
             }
         }
-        
         const tong = pBanker + pPlayer + pTie;
         return {
             BANKER: Math.round((pBanker / tong) * 100),
@@ -901,14 +790,10 @@ class SieuThuậtToan {
     hoc(duDoan, ketQuaThucTe) {
         this.ketQuaDuDoan.push({ duDoan, ketQuaThucTe });
         this.soLuotDuDoan++;
-        
         if (duDoan === ketQuaThucTe) {
             this.duDoanDung++;
         }
-        
-        this.doChinhXac = this.soLuotDuDoan > 0 ? 
-            (this.duDoanDung / this.soLuotDuDoan) * 100 : 0;
-        
+        this.doChinhXac = this.soLuotDuDoan > 0 ? (this.duDoanDung / this.soLuotDuDoan) * 100 : 0;
         if (this.ketQuaDuDoan.length > 1000) {
             this.ketQuaDuDoan = this.ketQuaDuDoan.slice(-1000);
         }
@@ -940,21 +825,17 @@ class ChampionEngineUltimate {
     duDoan() {
         const phanTich = this.sieuThuatToan.phanTichDaTang(this.lichSu);
         const danhGiaTinCay = this.doTinCay.danhGiaTinCay(this.lichSu);
-        
         const maxProb = Math.max(phanTich.BANKER, phanTich.PLAYER, phanTich.TIE);
         let huong = 'PLAYER';
         if (phanTich.BANKER === maxProb) huong = 'BANKER';
         else if (phanTich.PLAYER === maxProb) huong = 'PLAYER';
         else huong = 'TIE';
-        
         const tinCayBanker = this.doTinCay.danhGiaTinCayTheoCua(this.lichSu, 'BANKER');
         const tinCayPlayer = this.doTinCay.danhGiaTinCayTheoCua(this.lichSu, 'PLAYER');
         const tinCayTie = this.doTinCay.danhGiaTinCayTheoCua(this.lichSu, 'TIE');
-        
         let mucRuiRo = 'THAP';
         let khuyenNghi = '';
         let mucDoTinCay = '';
-        
         if (danhGiaTinCay.diemTongHop >= 70 && phanTich.doTinCay >= 70) {
             mucRuiRo = 'THAP';
             mucDoTinCay = 'CAO';
@@ -972,7 +853,6 @@ class ChampionEngineUltimate {
             mucDoTinCay = 'RAT_THAP';
             khuyenNghi = '🚫 Không nên đặt cược';
         }
-        
         const ketQuaDuDoan = {
             huong: huong,
             phanTich: phanTich,
@@ -987,19 +867,16 @@ class ChampionEngineUltimate {
             khuyenNghi: khuyenNghi,
             thoiGian: new Date().toISOString()
         };
-        
         return ketQuaDuDoan;
     }
 
     ghiLog(ketQuaThucTe) {
         const duDoan = this.duDoan();
         this.sieuThuatToan.hoc(duDoan.huong, ketQuaThucTe);
-        
         this.doChinhXacGanDay.push({
             dung: duDoan.huong === ketQuaThucTe,
             thoiGian: new Date().toISOString()
         });
-        
         if (this.doChinhXacGanDay.length > 100) {
             this.doChinhXacGanDay = this.doChinhXacGanDay.slice(-100);
         }
@@ -1007,12 +884,9 @@ class ChampionEngineUltimate {
 
     layThongKe() {
         const doChinhXac = this.sieuThuatToan.layDoChinhXac();
-        
         const ganDay = this.doChinhXacGanDay.slice(-20);
         const soDung = ganDay.filter(x => x.dung).length;
-        const doChinhXacGanDay = ganDay.length > 0 ? 
-            Math.round((soDung / ganDay.length) * 100) : 0;
-        
+        const doChinhXacGanDay = ganDay.length > 0 ? Math.round((soDung / ganDay.length) * 100) : 0;
         return {
             tongSoLuot: this.sieuThuatToan.soLuotDuDoan,
             doChinhXacTong: doChinhXac,
@@ -1023,16 +897,24 @@ class ChampionEngineUltimate {
 }
 
 // ======================
-// SESSION AXIOS
+// SESSION AXIOS VỚI RETRY
 // ======================
 const session = axios.create({
     baseURL: BASE,
-    timeout: 30000,
+    timeout: 60000,
     httpsAgent: agent,
     headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1',
+        'Cache-Control': 'max-age=0'
     }
 });
 
@@ -1053,6 +935,13 @@ session.interceptors.response.use(res => {
         }
     }
     return res;
+}, async (error) => {
+    if (error.response && error.response.status === 522) {
+        console.log('⚠️ Lỗi 522, thử lại sau 3 giây...');
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        return session.request(error.config);
+    }
+    return Promise.reject(error);
 });
 
 // ======================
@@ -1064,31 +953,52 @@ function getCsrfToken(html) {
 }
 
 // ======================
-// ĐĂNG NHẬP
+// ĐĂNG NHẬP VỚI RETRY
 // ======================
-async function login() {
-    try {
-        const getResp = await session.get(LOGIN_URL);
-        const token = getCsrfToken(getResp.data);
-        
-        const formData = new URLSearchParams();
-        formData.append('username', USERNAME);
-        formData.append('password', PASSWORD);
-        formData.append('_token', token);
-        formData.append('action', 'Login');
-        
-        const headers = {
-            'Referer': LOGIN_URL,
-            'Origin': BASE,
-            'Content-Type': 'application/x-www-form-urlencoded'
-        };
-        
-        const loginResp = await session.post(LOGIN_URL, formData.toString(), { headers });
-        return loginResp.status === 200;
-    } catch (error) {
-        console.error('Login error:', error.message);
-        return false;
+async function loginWithRetry(maxRetries = 5) {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            console.log(`[${attempt}/${maxRetries}] Đang đăng nhập...`);
+            const getResp = await session.get(LOGIN_URL, { timeout: 30000 });
+            const token = getCsrfToken(getResp.data);
+            if (!token) {
+                console.error('Không lấy được CSRF token');
+                continue;
+            }
+            console.log('✅ Đã lấy CSRF token');
+            const formData = new URLSearchParams();
+            formData.append('username', USERNAME);
+            formData.append('password', PASSWORD);
+            formData.append('_token', token);
+            formData.append('action', 'Login');
+            const headers = {
+                'Referer': LOGIN_URL,
+                'Origin': BASE,
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            };
+            const loginResp = await session.post(LOGIN_URL, formData.toString(), { headers, timeout: 30000 });
+            if (loginResp.status === 200 && loginResp.data) {
+                if (loginResp.data.includes('dashboard') || loginResp.data.includes('lobby')) {
+                    console.log('✅ Đăng nhập thành công!');
+                    return true;
+                }
+                if (cookieJar.includes('laravel_session') || cookieJar.includes('XSRF-TOKEN')) {
+                    console.log('✅ Đăng nhập thành công (cookie)');
+                    return true;
+                }
+            }
+            console.error(`❌ Lần thử ${attempt} thất bại`);
+        } catch (error) {
+            console.error(`❌ Lần thử ${attempt} lỗi:`, error.message);
+            if (attempt < maxRetries) {
+                const waitTime = attempt * 3000;
+                console.log(`⏳ Chờ ${waitTime/1000}s trước khi thử lại...`);
+                await new Promise(resolve => setTimeout(resolve, waitTime));
+            }
+        }
     }
+    return false;
 }
 
 // ======================
@@ -1096,7 +1006,7 @@ async function login() {
 // ======================
 async function goToLobby() {
     try {
-        await session.get(LOBBY_URL);
+        await session.get(LOBBY_URL, { timeout: 30000 });
         return true;
     } catch (error) {
         console.error('Lobby error:', error.message);
@@ -1112,37 +1022,31 @@ async function fetchBaccaratData() {
         let xsrfToken = '';
         const xsrfMatch = cookieJar.match(/XSRF-TOKEN=([^;]+)/);
         if (xsrfMatch) xsrfToken = decodeURIComponent(xsrfMatch[1]);
-        
         const headers = {
             'Referer': LOBBY_URL,
             'Origin': BASE,
             'X-Requested-With': 'XMLHttpRequest',
             'X-XSRF-TOKEN': xsrfToken,
-            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         };
-        
         const formData = new URLSearchParams();
         formData.append('gameCode', 'ae');
-        
-        const resp = await session.post(GETNEWRESULT_URL, formData.toString(), { headers });
-        
+        const resp = await session.post(GETNEWRESULT_URL, formData.toString(), { headers, timeout: 30000 });
         if (resp.data && resp.data.data) {
             resp.data.data.forEach(item => {
                 const tableName = item.table_name;
                 const result = item.result;
-                
                 if (!historyData[tableName]) {
                     historyData[tableName] = {
                         raw: [],
                         engine: new ChampionEngineUltimate()
                     };
                 }
-                
                 let resultType = 'PLAYER';
                 if (result.toUpperCase().includes('BANKER')) resultType = 'BANKER';
                 else if (result.toUpperCase().includes('PLAYER')) resultType = 'PLAYER';
                 else if (result.toUpperCase().includes('TIE')) resultType = 'TIE';
-                
                 const existingIndex = historyData[tableName].raw.findIndex(h => h.round === item.round);
                 if (existingIndex === -1) {
                     historyData[tableName].raw.unshift({
@@ -1151,25 +1055,20 @@ async function fetchBaccaratData() {
                         resultType: resultType,
                         timestamp: new Date().toISOString()
                     });
-                    
                     const engine = historyData[tableName].engine;
                     const currentHistory = historyData[tableName].raw
                         .slice(0, 200)
                         .map(h => h.resultType)
                         .filter(r => r !== 'TIE');
-                    
                     engine.nap(currentHistory);
-                    
                     if (currentHistory.length > 1) {
                         engine.ghiLog(currentHistory[currentHistory.length - 1]);
                     }
-                    
                     if (historyData[tableName].raw.length > 200) {
                         historyData[tableName].raw.pop();
                     }
                 }
             });
-            
             baccaratData = resp.data.data.map(item => ({
                 table: item.table_name,
                 result: item.result,
@@ -1178,7 +1077,6 @@ async function fetchBaccaratData() {
             }));
             lastUpdate = new Date().toISOString();
         }
-        
         return baccaratData;
     } catch (error) {
         console.error('Fetch error:', error.message);
@@ -1208,9 +1106,6 @@ app.use((req, res, next) => {
     next();
 });
 
-// ======================
-// HÀM THÊM ID DEVELOPER VÀO RESPONSE
-// ======================
 function addDeveloperId(response) {
     return {
         ...response,
@@ -1226,7 +1121,6 @@ function addDeveloperId(response) {
 
 app.get('/api/predict/:table', (req, res) => {
     const tableName = req.params.table;
-    
     if (!historyData[tableName] || historyData[tableName].raw.length < 5) {
         return res.json(addDeveloperId({
             success: false,
@@ -1234,12 +1128,10 @@ app.get('/api/predict/:table', (req, res) => {
             needMore: Math.max(0, 5 - (historyData[tableName]?.raw.length || 0))
         }));
     }
-    
     const engine = historyData[tableName].engine;
     const prediction = engine.duDoan();
     const stats = engine.layThongKe();
     const currentResult = baccaratData.find(item => item.table === tableName);
-    
     res.json(addDeveloperId({
         success: true,
         table: tableName,
@@ -1263,7 +1155,6 @@ app.get('/api/predict/:table', (req, res) => {
 app.get('/api/predict/all', (req, res) => {
     const predictions = {};
     const tables = Object.keys(historyData);
-    
     tables.forEach(table => {
         if (historyData[table].raw.length >= 5) {
             const engine = historyData[table].engine;
@@ -1288,7 +1179,6 @@ app.get('/api/predict/all', (req, res) => {
             };
         }
     });
-    
     res.json(addDeveloperId({
         success: true,
         predictions: predictions,
@@ -1298,17 +1188,14 @@ app.get('/api/predict/all', (req, res) => {
 
 app.get('/api/trust/:table', (req, res) => {
     const tableName = req.params.table;
-    
     if (!historyData[tableName] || historyData[tableName].raw.length < 5) {
         return res.json(addDeveloperId({
             success: false,
             message: `Không đủ dữ liệu cho bàn ${tableName}`
         }));
     }
-    
     const engine = historyData[tableName].engine;
     const prediction = engine.duDoan();
-    
     res.json(addDeveloperId({
         success: true,
         table: tableName,
@@ -1323,17 +1210,14 @@ app.get('/api/trust/:table', (req, res) => {
 
 app.get('/api/performance/:table', (req, res) => {
     const tableName = req.params.table;
-    
     if (!historyData[tableName]) {
         return res.json(addDeveloperId({
             success: false,
             message: 'Không tìm thấy bàn ' + tableName
         }));
     }
-    
     const engine = historyData[tableName].engine;
     const stats = engine.layThongKe();
-    
     res.json(addDeveloperId({
         success: true,
         table: tableName,
@@ -1354,7 +1238,6 @@ app.get('/api/baccarat', (req, res) => {
 app.get('/api/baccarat/:table', (req, res) => {
     const tableName = req.params.table;
     const found = baccaratData.find(item => item.table === tableName);
-    
     if (found) {
         res.json(addDeveloperId({ success: true, data: found }));
     } else {
@@ -1365,7 +1248,6 @@ app.get('/api/baccarat/:table', (req, res) => {
 app.get('/api/history/:table', (req, res) => {
     const tableName = req.params.table;
     const limit = parseInt(req.query.limit) || 20;
-    
     if (historyData[tableName]) {
         const history = historyData[tableName].raw.slice(0, limit);
         res.json(addDeveloperId({
@@ -1387,10 +1269,10 @@ app.get('/api/latest', (req, res) => {
         const numB = parseInt(b.table) || 0;
         return numB - numA;
     });
-    res.json(addDeveloperId({ 
-        success: true, 
-        data: latest.slice(0, 10), 
-        lastUpdate: lastUpdate 
+    res.json(addDeveloperId({
+        success: true,
+        data: latest.slice(0, 10),
+        lastUpdate: lastUpdate
     }));
 });
 
@@ -1412,27 +1294,20 @@ async function start() {
     console.log('🏆 BACCARAT ULTIMATE PREDICTION ENGINE');
     console.log('========================================');
     console.log(`👨‍💻 Developer: ${DEVELOPER_ID}`);
+    console.log(`👤 Username: ${USERNAME}`);
     console.log('🔬 HỆ THỐNG PHÂN TÍCH SIÊU CẤP:');
     console.log('   - 4 Tầng phân tích dữ liệu');
     console.log('   - 6 Yếu tố đánh giá độ tin cậy');
     console.log('   - 5 Thuật toán dự đoán kết hợp');
     console.log('   - Học máy thích ứng thời gian thực');
-    console.log('========================================');
-    console.log('📊 ĐỘ TIN CẬY:');
-    console.log('   ✅ CAO: > 85%');
-    console.log('   ✅ TRUNG_BINH_CAO: 70-85%');
-    console.log('   ⚠️ TRUNG_BINH: 55-70%');
-    console.log('   ⚠️ TRUNG_BINH_THAP: 40-55%');
-    console.log('   ❌ THAP: < 40%');
+    console.log('   - Retry tự động khi lỗi 522');
     console.log('========================================');
     
-    console.log('[1] Đang đăng nhập...');
-    const loginOk = await login();
+    const loginOk = await loginWithRetry(5);
     if (!loginOk) {
-        console.error('[ERROR] Đăng nhập thất bại!');
+        console.error('[ERROR] Đăng nhập thất bại sau nhiều lần thử!');
         process.exit(1);
     }
-    console.log('[OK] Đăng nhập thành công');
     
     console.log('[2] Vào lobby...');
     await goToLobby();
@@ -1454,6 +1329,7 @@ async function start() {
     app.listen(PORT, '0.0.0.0', () => {
         console.log(`\n🚀 ULTIMATE API SERVER ĐANG CHẠY:`);
         console.log(`   👨‍💻 Developer: ${DEVELOPER_ID}`);
+        console.log(`   👤 Username: ${USERNAME}`);
         console.log(`   🔮 Dự đoán với độ tin cậy:`);
         console.log(`   http://localhost:${PORT}/api/predict/C01`);
         console.log(`   http://localhost:${PORT}/api/predict/all`);
@@ -1467,9 +1343,9 @@ async function start() {
         console.log(`\n   🏥 Health Check:`);
         console.log(`   http://localhost:${PORT}/api/health`);
         console.log(`\n⏰ Auto update mỗi 2 giây`);
+        console.log(`🔄 Retry tự động khi gặp lỗi 522`);
         console.log(`🎯 Độ chính xác: Đang học...`);
         console.log(`🧠 Hệ thống đảm bảo KHÔNG BAO GIỜ có kết quả 50/50`);
-        console.log(`📊 Đánh giá độ tin cậy chi tiết với 6 yếu tố`);
         console.log(`👨‍💻 ID: ${DEVELOPER_ID}`);
     });
 }
